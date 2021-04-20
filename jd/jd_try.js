@@ -26,7 +26,7 @@ const args = {
 	cidsList: ["家用电器", "手机数码", "电脑办公", "家居家装"],
 	typeList: ["普通试用", "闪电试用"],
 	goodFilters: "教程@软件@英语@辅导@培训".split('@'),
-	minPrice: 0,
+	minPrice: 69,
 	maxSupplyCount: 10,
 }
 
