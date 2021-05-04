@@ -74,12 +74,10 @@ const JD_API_HOST = 'https://wq.jd.com/fav';
     })
 async function jdUnsubscribe(doubleKey) {
   await Promise.all([
-    unsubscribeGoods(doubleKey),
     unsubscribeShops()
   ])
   await Promise.all([
     getFollowShops(),
-    getFollowGoods()
   ])
 }
 function showMsg() {
@@ -89,100 +87,6 @@ function showMsg() {
     $.log(`\n【京东账号${$.index}】${$.nickName}\n【已取消关注店铺】${$.unsubscribeShopsCount}个\n【已取消关注商品】${$.unsubscribeGoodsCount}个\n【还剩关注店铺】${$.shopsTotalNum}个\n【还剩关注商品】${$.goodsTotalNum}个\n`);
   }
 }
-function unsubscribeGoods() {
-  return new Promise(async (resolve) => {
-    let followGoods = await getFollowGoods();
-    if (followGoods.iRet === '0') {
-      let count = 0;
-      $.unsubscribeGoodsCount = count;
-      if ((goodPageSize * 1) !== 0) {
-        if (followGoods.totalNum > 0) {
-          for (let item of followGoods.data) {
-
-            console.log(`是否匹配：：${item.commTitle.indexOf(stopGoods.replace(/\ufffc|\s*/g, ''))}`)
-
-            if (stopGoods && item.commTitle.indexOf(stopGoods.replace(/\ufffc|\s*/g, '')) > -1) {
-              console.log(`匹配到了您设定的商品--${stopGoods}，不在进行取消关注商品`)
-              break;
-            }
-            let res = await unsubscribeGoodsFun(item.commId);
-            // console.log('取消关注商品结果', res);
-            if (res.iRet === 0 && res.errMsg === 'success') {
-              console.log(`取消关注商品---${item.commTitle.substring(0, 20).concat('...')}---成功\n`)
-              count ++;
-            } else {
-              console.log(`取消关注商品---${item.commTitle.substring(0, 20).concat('...')}---失败\n`)
-            }
-          }
-          $.unsubscribeGoodsCount = count;
-          resolve(count)
-        } else {
-          resolve(count)
-        }
-      } else {
-        console.log(`\n您设置的是不取关商品\n`);
-        resolve(count);
-      }
-    }
-  })
-}
-function getFollowGoods() {
-  return new Promise((resolve) => {
-    const option = {
-      url: `${JD_API_HOST}/comm/FavCommQueryFilter?cp=1&pageSize=${goodPageSize}&_=${Date.now()}&category=0&promote=0&cutPrice=0&coupon=0&stock=0&areaNo=1_72_4139_0&sceneval=2&g_login_type=1&callback=jsonpCBKB&g_ty=ls`,
-      headers: {
-        "Host": "wq.jd.com",
-        "Accept": "*/*",
-        "Connection": "keep-alive",
-        "Cookie": cookie,
-        "User-Agent": $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1"),
-        "Accept-Language": "zh-cn",
-        "Referer": "https://wqs.jd.com/my/fav/goods_fav.shtml?ptag=37146.4.1&sceneval=2&jxsid=15963530166144677970",
-        "Accept-Encoding": "gzip, deflate, br"
-      },
-    }
-    $.get(option, (err, resp, data) => {
-      try {
-        data = JSON.parse(data.slice(14, -13));
-        $.goodsTotalNum = data.totalNum;
-        // console.log('data', data.data.length)
-      } catch (e) {
-        $.logErr(e, resp);
-      } finally {
-        resolve(data);
-      }
-    });
-  })
-}
-function unsubscribeGoodsFun(commId) {
-  return new Promise(resolve => {
-    const option = {
-      url: `${JD_API_HOST}/comm/FavCommDel?commId=${commId}&_=${Date.now()}&sceneval=2&g_login_type=1&callback=jsonpCBKP&g_ty=ls`,
-      headers: {
-        "Host": "wq.jd.com",
-        "Accept": "*/*",
-        "Connection": "keep-alive",
-        'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1"),
-        'Referer': 'https://wqs.jd.com/my/fav/goods_fav.shtml?ptag=37146.4.1&sceneval=2&jxsid=15963530166144677970',
-        'Cookie': cookie,
-        "Accept-Language": "zh-cn",
-        "Accept-Encoding": "gzip, deflate, br"
-      },
-    }
-    $.get(option, (err, resp, data) => {
-      try {
-        data = JSON.parse(data.slice(14, -13).replace(',}', '}'));
-        // console.log('data', data);
-        // console.log('data', data.errMsg);
-      } catch (e) {
-        $.logErr(e, resp);
-      } finally {
-        resolve(data);
-      }
-    });
-  })
-}
-
 function unsubscribeShops() {
   return new Promise(async (resolve) => {
     let followShops = await getFollowShops();
