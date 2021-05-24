@@ -17,7 +17,15 @@ const $ = new Env('动物联萌');
 //Node.js用户请在jdCookie.js处填写京东ck;
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
 //IOS等用户直接用NobyDa的jd cookie
-let cookiesArr = [], cookie = '',secretp = '',shareCodeList = [];
+let cookiesArr = [], cookie = '',secretp = '',
+//商圈码
+shareCodeList = [
+
+];
+//个人码
+inviteIdList = [
+
+];
 if ($.isNode()) {
   Object.keys(jdCookieNode).forEach((item) => {
     cookiesArr.push(jdCookieNode[item])
@@ -25,6 +33,17 @@ if ($.isNode()) {
 } else {
   cookiesArr.push($.getdata('CookieJD'));
   cookiesArr.push($.getdata('CookieJD2'));
+  cookiesArr.push($.getdata('CookieJD3'));
+  cookiesArr.push($.getdata('CookieJD4'));
+  cookiesArr.push($.getdata('CookieJD5'));
+  cookiesArr.push($.getdata('CookieJD6'));
+  cookiesArr.push($.getdata('CookieJD7'));
+  cookiesArr.push($.getdata('CookieJD8'));
+  cookiesArr.push($.getdata('CookieJD9'));
+  cookiesArr.push($.getdata('CookieJD10'));
+  cookiesArr.push($.getdata('CookieJD11'));
+  cookiesArr.push($.getdata('CookieJD12'));
+  cookiesArr.push($.getdata('CookieJD13'));
 }
 
 const JD_API_HOST = `https://api.m.jd.com/client.action?functionId=`;
@@ -567,6 +586,47 @@ function qryViewkitCallbackResult(taskBody,timeout = 0) {
   })
 }
 
+//群组助力
+function zoo_pk_assistGroup(inviteId = "",timeout = 0) {
+  return new Promise((resolve) => {
+    let rnd = Math.round(Math.random()*1e6)
+    let nonstr = randomWord(false,10)
+    let time = Date.now()
+    let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
+    let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
+    let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase()
+    //inviteId = "IgNWdiLGaPbb6ArIDg2g7t5ov9boGePFOlAq0hiVz-muX7bnH9gutA"
+    setTimeout( ()=>{
+      let url = {
+        url : `${JD_API_HOST}zoo_pk_assistGroup`  ,
+        headers : {
+          'Origin' : `https://wbbny.m.jd.com`,
+          'Cookie' : cookie,
+          'Connection' : `keep-alive`,
+          'Accept' : `application/json, text/plain, */*`,
+          'Host' : `api.m.jd.com`,
+          'User-Agent' : `jdapp;iPhone;9.2.6;14.1;`,
+          'Accept-Encoding' : `gzip, deflate, br`,
+          'Accept-Language' : `zh-cn`,
+          'Refer' : `https://bunearth.m.jd.com/babelDiy/Zeus/4SJUHwGdUQYgg94PFzjZZbGZRjDd/index.html?jmddToSmartEntry=login`
+        },
+        body : `functionId=zoo_pk_assistGroup&body={"confirmFlag":1,"inviteId":"${inviteId}","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.1\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"pkPopupHelpButtonId\\",\\"sceneid\\":\\"sideTaskh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}"}&client=wh5&clientVersion=1.0.0`
+      }
+      //console.log(url.body)
+      $.post(url, async (err, resp, data) => {
+        try {
+          //console.log('商圈助力：' + data)
+          data = JSON.parse(data);
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve()
+        }
+      })
+    },timeout)
+  })
+}
+
 //获取首页信息
 function zoo_getHomeData(inviteId= "",timeout = 0) {
   return new Promise((resolve) => {
@@ -611,15 +671,86 @@ function zoo_getHomeData(inviteId= "",timeout = 0) {
             //console.log('zoo_getHomeData:' + JSON.stringify(data))
             secretp = data.data.result.homeMainInfo.secretp
             await zoo_collectProduceScore();
-            await zoo_pk_getHomeData('sSKNX-MpqKOJsNu_mZneBluwe_DRzs1f90l6Q_p8OVxtoB-JJEErrVU4eHW7e2I')
+            await zoo_pk_getHomeData('1')
             //await zoo_pk_assistGroup()
             if (data.data.result.homeMainInfo.raiseInfo.buttonStatus === 1 ) await zoo_raise(1000)
-            await zoo_getHomeData('ZXTKT0225KkcRx4b8lbWJU72wvZZcwFjRWn6-7zx55awQ');
+            // 助力码 
+            for (let i in inviteIdList) {
+              if (inviteIdList[i]){
+                await zoo_getHomeData(inviteIdList[i]);
+                console.log("正在助力个人码："+inviteIdList[i])
+              } 
+            }
+            // await zoo_getHomeData('ZXTKT0225KkcRx4b8lbWJU72wvZZcwFjRWn6-7zx55awQ');
             //await zoo_getTaskDetail("","app")
             await zoo_getTaskDetail()
           } else {
             return
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve()
+        }
+      })
+    },timeout)
+  })
+}
+
+
+//助力
+function collectFriendRecordColor(timeout = 0) {
+  return new Promise((resolve) => {
+    setTimeout( ()=>{
+      let url = {
+        url : `${JD_API_HOST}collectFriendRecordColor`  ,
+        headers : {
+          'Origin' : `https://wbbny.m.jd.com`,
+          'Cookie' : cookie,
+          'Connection' : `keep-alive`,
+          'Accept' : `application/json, text/plain, */*`,
+          'Host' : `api.m.jd.com`,
+          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
+          'Accept-Encoding' : `gzip, deflate, br`,
+          'Accept-Language' : `zh-cn`
+        },
+        body : `functionId=collectFriendRecordColor&body={"mpin":"RnFgwWRbPDGKy9RP--twXV_3bZt2p2ZADl2v","businessCode":"20118","assistType":"1"}&client=wh5&clientVersion=1.0.0`
+      }
+      $.post(url, async (err, resp, data) => {
+        try {
+          console.log(data)
+          //data = JSON.parse(data);
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve()
+        }
+      })
+    },timeout)
+  })
+}
+
+function getEncryptedPinColor(timeout = 0) {
+  return new Promise((resolve) => {
+    setTimeout( ()=>{
+      let url = {
+        url : `${JD_API_HOST}getEncryptedPinColor`  ,
+        headers : {
+          'Origin' : `https://wbbny.m.jd.com`,
+          'Cookie' : cookie,
+          'Connection' : `keep-alive`,
+          'Accept' : `application/json, text/plain, */*`,
+          'Host' : `api.m.jd.com`,
+          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
+          'Accept-Encoding' : `gzip, deflate, br`,
+          'Accept-Language' : `zh-cn`
+        },
+        body : `functionId=getEncryptedPinColor&body={}&client=wh5&clientVersion=1.0.0`
+      }
+      $.post(url, async (err, resp, data) => {
+        try {
+          data = JSON.parse(data);
+          console.log('助力码:'+ data.result)
         } catch (e) {
           $.logErr(e, resp);
         } finally {
@@ -719,9 +850,12 @@ function zoo_pk_getHomeData(body = "",timeout = 0) {
       $.post(url, async (err, resp, data) => {
         try {
           if (body !== "") {
-            await $.getScript("https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/memo/jd_zooShareCode.txt").then((text) => (shareCodeList = text.split('\n')))
+            // await $.getScript("https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/memo/jd_zooShareCode.txt").then((text) => (shareCodeList = text.split('\n')))
             for (let i in shareCodeList) {
-              if (shareCodeList[i]) await zoo_pk_assistGroup(shareCodeList[i]);
+              if (shareCodeList[i]) {
+                  console.log("正在群组助力："+shareCodeList[i])
+                  await zoo_pk_assistGroup(shareCodeList[i]);
+              }
             }
             //await zoo_pk_assistGroup(body);
           } else {
