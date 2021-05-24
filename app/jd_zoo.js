@@ -31,8 +31,8 @@ if ($.isNode()) {
     cookiesArr.push(jdCookieNode[item])
   })
 } else {
+  cookiesArr.push($.getdata('CookieJD3'));
   cookiesArr.push($.getdata('CookieJD'));
-  cookiesArr.push($.getdata('CookieJD2'));
   cookiesArr.push($.getdata('CookieJD3'));
   cookiesArr.push($.getdata('CookieJD4'));
   cookiesArr.push($.getdata('CookieJD5'));
