@@ -1,1010 +1,1070 @@
 /*
-动物联萌 618活动
-更新时间：2021-05-24 10:47
-做任务，收金币
-脚本兼容: QuantumultX, Surge, Loon, JSBox, Node.js
-// quantumultx
+update 2021/4/11
+京东试用：脚本更新地址 https://raw.githubusercontent.com/ZCY01/daily_scripts/main/jd/jd_try.js
+脚本兼容: QuantumultX, Node.js
+
+⚠️ 非常耗时的脚本。最多可能执行半小时！
+每天最多关注300个商店，但用户商店关注上限为500个。
+请配合取关脚本试用，使用 jd_unsubscribe.js 提前取关至少250个商店确保京东试用脚本正常运行。
+==========================Quantumultx=========================
 [task_local]
-#动物联萌
-5 * * * * https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/scripts/jd/jd_zoo.js, tag=动物联萌, img-url=https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/image/jd.png, enabled=true
-// Loon
-[Script]
-cron "5 * * * *" script-path=https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/scripts/jd/jd_zoo.js,tag=动物联萌
-// Surge
-动物联萌 = type=cron,cronexp=5 * * * *,wake-system=1,timeout=500,script-path=https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/scripts/jd/jd_zoo.js
-*/
-const $ = new Env('动物联萌');
-//Node.js用户请在jdCookie.js处填写京东ck;
-const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
-//IOS等用户直接用NobyDa的jd cookie
-let cookiesArr = [], cookie = '',secretp = '',
-//商圈码
-shareCodeList = [
+# 取关京东店铺商品，请在 boxjs 修改取消关注店铺数量
+5 10 * * * https://raw.githubusercontent.com/lxk0301/jd_scripts/master/jd_unsubscribe.js, tag=取关京东店铺商品, enabled=true
 
-];
-//个人码
-inviteIdList = [
+# 京东试用
+30 10 * * * https://raw.githubusercontent.com/ZCY01/daily_scripts/main/jd/jd_try.js, tag=京东试用, img-url=https://raw.githubusercontent.com/ZCY01/img/master/jdtryv1.png, enabled=true
+ */
+const $ = new Env('京东试用')
 
-];
-if ($.isNode()) {
-  Object.keys(jdCookieNode).forEach((item) => {
-    cookiesArr.push(jdCookieNode[item])
-  })
-} else {
-  cookiesArr.push($.getdata('CookieJD'));
-  cookiesArr.push($.getdata('CookieJD2'));
-  cookiesArr.push($.getdata('CookieJD3'));
-  cookiesArr.push($.getdata('CookieJD4'));
-  cookiesArr.push($.getdata('CookieJD5'));
-  cookiesArr.push($.getdata('CookieJD6'));
-  cookiesArr.push($.getdata('CookieJD7'));
-  cookiesArr.push($.getdata('CookieJD8'));
-  cookiesArr.push($.getdata('CookieJD9'));
-  cookiesArr.push($.getdata('CookieJD10'));
-  cookiesArr.push($.getdata('CookieJD11'));
-  cookiesArr.push($.getdata('CookieJD12'));
-  cookiesArr.push($.getdata('CookieJD13'));
+const selfDomain = 'https://try.m.jd.com'
+let allGoodList = []
+
+// default params
+const args = {
+	jdNotify: false,
+	pageSize: 12,
+	cidsList: ["家用电器", "手机数码", "电脑办公", "家居家装"],
+	typeList: ["普通试用", "闪电试用"],
+	goodFilters: "教程@软件@英语@辅导@培训".split('@'),
+	minPrice: 99,
+	maxSupplyCount: 10,
 }
 
-const JD_API_HOST = `https://api.m.jd.com/client.action?functionId=`;
-!(async () => {
-  if (!cookiesArr[0]) {
-    $.msg($.name, '【提示】请先获取cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/', {"open-url": "https://bean.m.jd.com/"});
-    return;
-  }
+const cidsMap = {
+	"全部商品": "0",
+	"家用电器": "737",
+	"手机数码": "652,9987",
+	"电脑办公": "670",
+	"家居家装": "1620,6728,9847,9855,6196,15248,14065",
+	"美妆护肤": "1316",
+	"服饰鞋包": "1315,1672,1318,11729",
+	"母婴玩具": "1319,6233",
+	"生鲜美食": "12218",
+	"图书音像": "1713,4051,4052,4053,7191,7192,5272",
+	"钟表奢品": "5025,6144",
+	"个人护理": "16750",
+	"家庭清洁": "15901",
+	"食品饮料": "1320,12259",
+	"更多惊喜": "4938,13314,6994,9192,12473,6196,5272,12379,13678,15083,15126,15980",
+}
+const typeMap = {
+		"全部试用": "0",
+		"普通试用": "1",
+		"闪电试用": "2",
+		"30天试用": "5",
+	}
 
-  for (let i = 0; i < cookiesArr.length; i++) {
-    cookie = cookiesArr[i];
-    if (cookie) {
-      if (i) console.log(`\n***************开始京东账号${i + 1}***************`)
-      initial();
-      await  QueryJDUserInfo();
-      if (!merge.enabled)  //cookie不可用
-      {
-        $.setdata('', `CookieJD${i ? i + 1 : "" }`);//cookie失效，故清空cookie。
-        $.msg($.name, `【提示】京东账号${i ? i + 1 : "" } cookie已过期！请先获取cookie\n直接使用NobyDa的京东签到获取`, 'https://bean.m.jd.com/', {"open-url": "https://bean.m.jd.com/"});
-        continue;
-      }
-      console.log('\n\n京东账号：'+merge.nickname + ' 任务开始')
-      await zoo_pk_getHomeData();
-      await zoo_getHomeData();
-      //await qryCompositeMaterials()
-      await msgShow();
-      //break;
-    }
-  }
-})()
-  .catch((e) => $.logErr(e))
-  .finally(() => $.done())
+	!(async () => {
+		await requireConfig()
+		if (!$.cookiesArr[0]) {
+			$.msg($.name, '【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/', {
+				"open-url": "https://bean.m.jd.com/"
+			})
+			return
+		}
+		for (let i = 0; i < $.cookiesArr.length; i++) {
+			if ($.cookiesArr[i]) {
+				$.cookie = $.cookiesArr[i];
+				$.UserName = decodeURIComponent($.cookie.match(/pt_pin=(.+?);/) && $.cookie.match(/pt_pin=(.+?);/)[1])
+				$.index = i + 1;
+				$.isLogin = true;
+				$.nickName = '';
+				await totalBean();
+				console.log(`\n开始【京东账号${$.index}】${$.nickName || $.UserName}\n`);
+				if (!$.isLogin) {
+					$.msg($.name, `【提示】cookie已失效`, `京东账号${$.index} ${$.nickName || $.UserName}\n请重新登录获取\nhttps://bean.m.jd.com/bean/signIndex.action`, {
+						"open-url": "https://bean.m.jd.com/bean/signIndex.action"
+					});
+					await $.notify.sendNotify(`${$.name}cookie已失效 - ${$.UserName}`, `京东账号${$.index} ${$.UserName}\n请重新登录获取cookie`);
+					continue
+				}
 
-//获取昵称（直接用，勿删）
-function QueryJDUserInfo(timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `https://wq.jd.com/user/info/QueryJDUserInfo?sceneval=2`,
-        headers : {
-          'Referer' : `https://wqs.jd.com/my/iserinfo.html`,
-          'Cookie' : cookie
-        }
-      }
-      $.get(url, (err, resp, data) => {
-        try {
-          data = JSON.parse(data);
-          if (data.retcode === 13) {
-            merge.enabled = false
-            return
-          }
-          merge.nickname = data.base.nickname;
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+				$.goodList = []
+				$.successList = []
+				if (i == 0) {
+				}
+
+				$.totalTry = 0
+				$.totalGoods = $.goodList.length
+				await getSuccessList()
+
+				await showMsg()
+			}
+		}
+	})()
+	.catch((e) => {
+		console.log(`❗️ ${$.name} 运行错误！\n${e}`)
+	}).finally(() => $.done())
+
+function requireConfig() {
+	return new Promise(resolve => {
+		console.log('开始获取配置文件\n')
+		$.notify = $.isNode() ? require('./sendNotify') : {sendNotify:async () => {}}
+
+		//获取 Cookies
+		$.cookiesArr = []
+		if ($.isNode()) {
+			//Node.js用户请在jdCookie.js处填写京东ck;
+			const jdCookieNode = require('./jdCookie.js');
+			Object.keys(jdCookieNode).forEach((item) => {
+				if (jdCookieNode[item]) {
+					$.cookiesArr.push(jdCookieNode[item])
+				}
+			})
+			if (process.env.JD_DEBUG && process.env.JD_DEBUG === 'false') console.log = () => {};
+		} else {
+			//IOS等用户直接用NobyDa的jd $.cookie
+			$.cookiesArr = [$.getdata('CookieJD'), $.getdata('CookieJD2'), ...jsonParse($.getdata('CookiesJD') || "[]").map(item => item.cookie)].filter(item => !!item);
+		}
+		console.log(`共${$.cookiesArr.length}个京东账号\n`)
+
+		if ($.isNode()) {
+			if (process.env.JD_TRY_CIDS_KEYS) {
+				args.cidsList = process.env.JD_TRY_CIDS_KEYS.split('@').filter(key => {
+					return Object.keys(cidsMap).includes(key)
+				})
+			}
+			if (process.env.JD_TRY_TYPE_KEYS) {
+				args.typeList = process.env.JD_TRY_CIDS_KEYS.split('@').filter(key => {
+					return Object.keys(typeMap).includes(key)
+				})
+			}
+			if (process.env.JD_TRY_GOOD_FILTERS) {
+				args.goodFilters = process.env.JD_TRY_GOOD_FILTERS.split('@')
+			}
+			if (process.env.JD_TRY_MIN_PRICE) {
+				args.minPrice = process.env.JD_TRY_MIN_PRICE * 1
+			}
+			if (process.env.JD_TRY_PAGE_SIZE) {
+				args.pageSize = process.env.JD_TRY_PAGE_SIZE * 1
+			}
+			if (process.env.JD_TRY_MAX_SUPPLY_COUNT) {
+				args.maxSupplyCount = process.env.JD_TRY_MAX_SUPPLY_COUNT * 1
+			}
+		} else {
+			let qxCidsList = []
+			let qxTypeList = []
+			const cidsKeys = Object.keys(cidsMap)
+			const typeKeys = Object.keys(typeMap)
+			for (let key of cidsKeys) {
+				const open = $.getdata(key)
+				if (open == 'true') qxCidsList.push(key)
+			}
+			for (let key of typeKeys) {
+				const open = $.getdata(key)
+				if (open == 'true') qxTypeList.push(key)
+			}
+			if (qxCidsList.length != 0) args.cidsList = qxCidsList
+			if (qxTypeList.length != 0) args.typeList = qxTypeList
+			if ($.getdata('filter')) args.goodFilters = $.getdata('filter').split('&')
+			if ($.getdata('min_price')) args.minPrice = Number($.getdata('min_price'))
+			if ($.getdata('page_size')) args.pageSize = Number($.getdata('page_size'))
+			if ($.getdata('max_supply_count')) args.maxSupplyCount = Number($.getdata('max_supply_count'))
+			if (args.pageSize == 0) args.pageSize = 12
+		}
+		resolve()
+	})
 }
 
-//查询任务 "appSign":"2","channel":1,
-function zoo_getTaskDetail(shopSign = "",appSign = "",timeout = 0){
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      appSign = appSign&&'"appSign":"2","channel":1,'
-      let url = {
-        url : `${JD_API_HOST}zoo_getTaskDetail`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_getTaskDetail&body={${appSign}"shopSign":"${shopSign}"}&client=wh5&clientVersion=1.0.0`
-      }
-      //if (shopSign) {
-        //console.log(shopSign)
-      //  url.url = url.url.replace('zoo_getTaskDetail','zoo_shopLotteryInfo')
-      //  url.body = url.body.replace('zoo_getTaskDetail','zoo_shopLotteryInfo')
-      //}
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log('zoo_getTaskDetail:' + data)
-          data = JSON.parse(data);
-          if (shopSign === "") {
-            shopSign = '""'
-            if (appSign === "" && data.data.result) console.log(`您的个人助力码：${data.data.result.inviteId}`)
-          }
-          if (!data.data.result) return
-          for (let i = 0;i < data.data.result.taskVos.length;i ++) {
-            //if (merge.black)  return ;
-            console.log( "\n" + data.data.result.taskVos[i].taskType + '-' + data.data.result.taskVos[i].taskName + (appSign&&"（微信小程序）") + '-'  +  (data.data.result.taskVos[i].status === 1 ? `已完成${data.data.result.taskVos[i].times}-未完成${data.data.result.taskVos[i].maxTimes}` : "全部已完成")  )
-            if ([1,3,5,7,9,26].includes(data.data.result.taskVos[i].taskType) && data.data.result.taskVos[i].status === 1 ) {
-              let list = data.data.result.taskVos[i].brandMemberVos||data.data.result.taskVos[i].followShopVo||data.data.result.taskVos[i].shoppingActivityVos||data.data.result.taskVos[i].browseShopVo
-              //console.log(list)
-              //if (data.data.result.taskVos[i].taskType === 9) continue
-              for (let k = data.data.result.taskVos[i].times; k < data.data.result.taskVos[i].maxTimes; k++) {
-                //body : `functionId=zoo_collectProduceScore&body={"ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"xAX3mMUyCgH120XCrQXIZUw==\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.1\\",\\"client_version\\":\\"2.1.3\\",\\"sceneid\\":\\"homePageh5\\"},\\"businessData\\":{\\"taskId\\":\\"collectProducedCoin\\",\\"rnd\\":\\"${rnd}\\",\\"inviteId\\":\\"-1\\",\\"stealId\\":\\"-1\\"},\\"secretp\\":\\"${secretp}\\"}"}&client=wh5&clientVersion=1.0.0`
-                for (let j in list) {
-                  if (list[j].status === 1) {
-                    let rnd = Math.round(Math.random()*1e6)
-                    let nonstr = randomWord(false,10)
-                    let time = Date.now()
-                    let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-                    let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-                    let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase() //,\"random\":\"${rnd}\"
-                    let taskBody = `functionId=zoo_collectScore&body={"taskId":${data.data.result.taskVos[i].taskId},"taskToken" : "${list[j].taskToken}","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.2\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"jmdd-react-smash_62\\",\\"sceneid\\":\\"homePageh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}","itemId":"${list[j].itemId}","actionType":1,"shopSign":${shopSign}}&client=wh5&clientVersion=1.0.0`
-                    //console.log(taskBody)
-                    console.log("\n"+(list[j].title||list[j].shopName))
-                    await zoo_collectScore(taskBody,2000)
-                    //}
-                    list[j].status = 2;
-                    break;
-                  } else {
-                    continue;
-                  }
-                }
-              }
-            }
-
-            if ([12,13].includes(data.data.result.taskVos[i].taskType) && data.data.result.taskVos[i].status === 1) {
-              //let  taskBody = `functionId=zoo_collectScore&body={"taskId":${data.data.result.taskVos[i].taskId},"itemId":"1","ss":"{\\"extraData\\":{},\\"businessData\\":{},\\"secretp\\":\\"${secretp}\\"}","shopSign":${shopSign}}&client=wh5&clientVersion=1.0.0`
-              for (let k = data.data.result.taskVos[i].times; k < data.data.result.taskVos[i].maxTimes; k++) {
-                let rnd = Math.round(Math.random()*1e6)
-                let nonstr = randomWord(false,10)
-                let time = Date.now()
-                let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-                let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-                let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase()
-                //let taskBody = `functionId=zoo_collectScore&body={"taskId":${data.data.result.taskVos[i].taskId},"itemId":"1","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.1\\",\\"client_version\\":\\"2.1.3\\",\\"sceneid\\":\\"homePageh5\\"},\\"businessData\\":{\\"taskId\\":\\"${data.data.result.taskVos[i].taskId}\\",\\"rnd\\":\\"${rnd}\\",\\"inviteId\\":\\"-1\\",\\"stealId\\":\\"-1\\"},\\"secretp\\":\\"${secretp}\\"}","actionType":"1","shopSign":${shopSign}}&client=wh5&clientVersion=1.0.0`
-                let taskBody = `functionId=zoo_collectScore&body={"taskId":${data.data.result.taskVos[i].taskId},"taskToken" : "${list[j].taskToken}","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.2\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"jmdd-react-smash_62\\",\\"sceneid\\":\\"homePageh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}","itemId":"1","actionType":1,"shopSign":${shopSign}}&client=wh5&clientVersion=1.0.0`
-                if (merge.black)  return ;
-                  //if (typeof data.data.result.taskVos[i].simpleRecordInfoVo !== "undefined"){
-                  //  taskBody = encodeURIComponent(`{"dataSource":"newshortAward","method":"getTaskAward","reqParams":"{\\"taskToken\\":\\"${data.data.result.taskVos[i].simpleRecordInfoVo.taskToken}\\"}","sdkVersion":"1.0.0","clientLanguage":"zh"}`)
-                  //  await qryViewkitCallbackResult(taskBody,1000)
-                  //} else {
-                await zoo_collectScore(taskBody,1000)
-                  //}
-                }
-            }
-
-            if ([2].includes(data.data.result.taskVos[i].taskType) && data.data.result.taskVos[i].status === 1) {
-              //for (let k = data.data.result.taskVos[i].times; k < data.data.result.taskVos[i].maxTimes; k++) {
-              //  await zoo_getFeedDetail(data.data.result.taskVos[i].taskId)
-              //}
-            }
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function getGoodListByCond(cids, page, pageSize, type, state) {
+	return new Promise((resolve, reject) => {
+		let option = taskurl(`${selfDomain}/activity/list?pb=1&cids=${cids}&page=${page}&pageSize=${pageSize}&type=${type}&state=${state}`)
+		delete option.headers['Cookie']
+		$.get(option, (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					if (data.success) {
+						$.totalPages = data.data.pages
+						allGoodList = allGoodList.concat(data.data.data)
+					} else {
+						console.log(`💩 获得 ${cids} ${page} 列表失败: ${data.message}`)
+					}
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve()
+			}
+		})
+	})
 }
 
-//获取我的城市
-function zoo_myMap(timeout = 0){
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_myMap`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_myMap&body={"ss":"{\\"extraData\\":{},\\"businessData\\":{},\\"secretp\\":\\"${secretp}\\"}"}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          console.log('zoo_myMap:' + data)
-          data = JSON.parse(data);
-          for (let i in data.data.result.shopList) {
-            // (data.data.result.shopList[i].status === 1) {
-              //console.log(data.data.result.shopList[i])
-            console.log('\n开始小镇任务：'+ data.data.result.shopList[i].name)// + '-' + data.data.result.shopList[i].shopId
-            await zoo_getTaskDetail(data.data.result.shopList[i].shopId)
-            //}
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+async function getGoodList() {
+	if (args.cidsList.length === 0) args.cidsList.push("全部商品")
+	if (args.typeList.length === 0) args.typeList.push("全部试用")
+	for (let cidsKey of args.cidsList) {
+		for (let typeKey of args.typeList) {
+			if (!cidsMap.hasOwnProperty(cidsKey) || !typeMap.hasOwnProperty(typeKey)) continue
+			console.log(`⏰ 获取 ${cidsKey} ${typeKey} 商品列表`)
+			$.totalPages = 1
+			for (let page = 1; page <= $.totalPages; page++) {
+				await getGoodListByCond(cidsMap[cidsKey], page, args.pageSize, typeMap[typeKey], '0')
+			}
+		}
+	}
 }
 
-//逛商城
-function zoo_shopSignInWrite(shopSign,timeout = 0){
-  return new Promise((resolve) => {
+async function filterGoodList() {
+	console.log(`⏰ 过滤商品列表，当前共有${allGoodList.length}个商品`)
+	const now = Date.now()
+	const oneMoreDay = now + 24 * 60 * 60 * 1000
+	$.goodList = allGoodList.filter(good => {
+		// 1. good 有问题
+		// 2. good 距离结束不到10min
+		// 3. good 的结束时间大于一天
+		// 4. good 的价格小于最小的限制
+		// 5. good 的试用数量大于 maxSupplyCount, 视为垃圾商品
+		if (!good || good.endTime < now + 10 * 60 * 1000 || good.endTime > oneMoreDay || good.jdPrice < args.minPrice) {
+			return false
+		}
+		for (let item of args.goodFilters) {
+			if (good.trialName.indexOf(item) != -1) return false
+		}
+		if(good.supplyCount > args.maxSupplyCount){
+			return false
+		}
+		return true
 
-    let rnd = Math.round(Math.random()*1e6)
-    let nonstr = randomWord(false,10)
-    let time = Date.now()
-    let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-    let msg = `inviteId=-1&rnd=${rnd}&stealId=-1&taskId=${shopSign}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-    let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase()
-
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_shopSignInWrite`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_shopSignInWrite&body={"shopSign":"${shopSign}","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.1\\",\\"client_version\\":\\"2.1.3\\",\\"sceneid\\":\\"homePageh5\\"},\\"businessData\\":{\\"taskId\\":\\"${shopSign}\\",\\"rnd\\":\\"${rnd}\\",\\"inviteId\\":\\"-1\\",\\"stealId\\":\\"-1\\"},\\"secretp\\":\\"${secretp}\\"}"}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(data)
-          data = JSON.parse(data);
-          if (data.data.bizCode !== 0) {
-            console.log(data.data.bizMsg)
-            merge.end = true
-          } else {
-            console.log('获得金币' + data.data.result.score)
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+	})
+	await getApplyStateByActivityIds()
+	$.goodList = $.goodList.sort((a, b) => {
+		return b.jdPrice - a.jdPrice
+	})
 }
 
-//逛商城
-function zoo_shopSignInRead(shopSign,timeout = 0){
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_shopSignInRead`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_shopSignInRead&client=wh5&clientVersion=1.0.0&body={"shopSign":"${shopSign}"}`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          console.log(data)
-          data = JSON.parse(data);
-          if (data.data.result.signInTag === 0) {
-             secretp = secretp||data.data.result.secretp
-             await zoo_shopSignInWrite(shopSign)
-          } else {
-            console.log('已逛过')
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+async function getApplyStateByActivityIds() {
+	function opt(ids) {
+		return new Promise((resolve, reject) => {
+			$.get(taskurl(`${selfDomain}/getApplyStateByActivityIds?activityIds=${ids.join(',')}`), (err, resp, data) => {
+				try {
+					if (err) {
+						console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+					} else {
+						data = JSON.parse(data)
+						ids.length = 0
+						for (let apply of data) ids.push(apply.activityId)
+					}
+				} catch (e) {
+					reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+				} finally {
+					$.goodList = $.goodList.filter(good => {
+						for (let id of ids) {
+							if (id == good.id) {
+								return false
+							}
+						}
+						return true
+					})
+					resolve()
+				}
+			})
+		})
+	}
+
+	let list = []
+	for (let good of $.goodList) {
+		list.push(good.id)
+		if (list.length == args.pageSize) {
+			await opt(list)
+			list.length = 0
+		}
+	}
+	if (list.length) await opt(list)
 }
 
-//收金币
-function zoo_collectProduceScore(timeout = 0){
-  return new Promise((resolve) => {
-    let rnd = Math.round(Math.random()*1e6)
-    let nonstr = randomWord(false,10)
-    let time = Date.now()
-    let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-    let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-    let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase()
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_collectProduceScore`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_collectProduceScore&body={"ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.2\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"jmdd-react-smash_0\\",\\"sceneid\\":\\"homePageh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}"}&client=wh5&clientVersion=1.0.0`
-      }
-      //console.log(url.body)
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(data)
-          data = JSON.parse(data);
-          if (data.data.bizCode === -1002) {
-            //console.log('此账号暂不可使用脚本，脚本终止！')
-            //merge.black = true;
-            return ;
-          }
-          if (data.data.result) console.log(`\n收取金币：${data.data.result.produceScore}`)
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function canTry(good) {
+	return new Promise((resolve, reject) => {
+		let ret = false
+		$.get(taskurl(`${selfDomain}/activity?id=${good.id}`), (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					ret = data.indexOf('trySku') != -1
+					let result = data.match(/"shopId":(\d+)/)
+					if (result) {
+						good.shopId = eval(result[1])
+					}
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve(ret)
+			}
+		})
+	})
 }
 
-//获取可偷
-function zoo_pk_getStealForms(taskBody,timeout = 0){
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_pk_getStealForms`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : taskBody
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          console.log(data)
-          data = JSON.parse(data);
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
-}
-//做任务
-function zoo_collectScore(taskBody,timeout = 0){
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_collectScore`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : taskBody
-      }
-      //console.log(url.body)
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(data)
-          data = JSON.parse(data);
-          console.log('任务执行结果：' + data.data.bizMsg)
-          if (data.data.bizCode === -1002) {
-            //console.log(url.body)
-            console.log('\n提示火爆，休息5秒')
-            await $.wait(5000)
-            //await zoo_collectScore(taskBody)
-            //console.log('此账号暂不可使用脚本，脚本终止！')
-            //merge.black = true;
-            return ;
-          }
-          if (data.data.bizCode === 0 && typeof data.data.result.taskToken !== "undefined") {
-            //console.log('需要再次执行,如提示活动异常请多次重试，个别任务多次执行也不行就去APP做吧！')
-            let taskBody = encodeURIComponent(`{"dataSource":"newshortAward","method":"getTaskAward","reqParams":"{\\"taskToken\\":\\"${data.data.result.taskToken}\\"}","sdkVersion":"1.0.0","clientLanguage":"zh"}`)
-            //console.log(taskBody)
-            await qryViewkitCallbackResult(taskBody,7000)
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function isFollowed(good) {
+	return new Promise((resolve, reject) => {
+		$.get(taskurl(`${selfDomain}/isFollowed?id=${good.shopId}`, good.id), (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					resolve(data.success && data.data)
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve(false)
+			}
+		})
+	})
 }
 
-//做任务
-function zoo_doAdditionalTask(taskBody,timeout = 0){
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_doAdditionalTask`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : taskBody
-      }
-      //console.log(url.body)
-      $.post(url, async (err, resp, data) => {
-        try {
-          console.log(data)
-          data = JSON.parse(data);
-          console.log('任务执行结果：' + data.data.bizMsg)
-          if (data.data.bizCode === -1002) {
-            console.log('\n提示火爆，休息5秒')
-            await $.wait(5000)
-            return ;
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function followShop(good) {
+	return new Promise((resolve, reject) => {
+		$.get(taskurl(`${selfDomain}/followShop?id=${good.shopId}`, good.id), (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					if (data.code == 'F0410') {
+						$.running = false
+						$.stopMsg = data.msg || "关注数超过上限了哦~先清理下关注列表吧"
+					}
+					resolve(data.success && data.data)
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve(false)
+			}
+		})
+	})
 }
 
-//查询甄选任务
-function zoo_getFeedDetail(taskId,timeout = 0){
-  return new Promise((resolve) => {
-
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_getFeedDetail`,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_getFeedDetail&body={"taskId":"${taskId}"}&client=wh5&clientVersion=1.0.0`
-      }
-      //console.log(url)
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(data)
-          data = JSON.parse(data);
-          let list =  data.data.result.viewProductVos||data.data.result.addProductVos
-          for (let i in list) {
-            if (list[i].status === 1) {
-              for (let j in list[i].productInfoVos) {
-                if (j >= 5)  break;
-
-                let rnd = Math.round(Math.random()*1e6)
-                let nonstr = randomWord(false,10)
-                let time = Date.now()
-                let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-                let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-                let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase() //,\"random\":\"${rnd}\"
-                let taskBody = `functionId=zoo_collectScore&body={"taskId":${list[i].taskId},"ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.2\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"jmdd-react-smash_62\\",\\"sceneid\\":\\"homePageh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}","itemId":"${list[i].productInfoVos[j].skuId}","actionType":1}&client=wh5&clientVersion=1.0.0`
-                //console.log(taskBody)
-                //body={"taskId":${list[i].taskId},"itemId":"${list[i].productInfoVos[j].skuId}","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.1\\",\\"client_version\\":\\"2.1.3\\",\\"sceneid\\":\\"homePageh5\\"},\\"random\\":\\"${rnd}\\",\\"secretp\\":\\"${secretp}\\"}","shopSign":""}&client=wh5&clientVersion=1.0.0`
-                console.log(list[i].productInfoVos[j].skuName)
-                await zoo_collectScore(taskBody,1000)
-              }
-              list[i].status = 2
-            }
-          }
-
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+async function tryGoodList() {
+	console.log(`⏰ 即将申请 ${$.goodList.length} 个商品`)
+	$.running = true
+	$.stopMsg = '申请完毕'
+	for (let i = 0; i < $.goodList.length && $.running; i++) {
+		let good = $.goodList[i]
+		if (!await canTry(good)) continue
+		// 如果没有关注且关注失败
+		if (good.shopId && !await isFollowed(good) && !await followShop(good)) continue
+		// 两个申请间隔不能太短，放在下面有利于确保 follwShop 完成
+		await $.wait(5000)
+		// 关注完毕，即将试用
+		await doTry(good)
+	}
 }
 
-//做任务2
-function qryViewkitCallbackResult(taskBody,timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `https://api.m.jd.com/?functionId=qryViewkitCallbackResult&client=wh5&clientVersion=1.0.0&body=${taskBody}&_timestamp=`+Date.now(),
-        headers : {
-          'Origin' : `https://bunearth.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `*/*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`,
-          'Content-Type' : 'application/x-www-form-urlencoded',
-          'Referer' : 'https://bunearth.m.jd.com/babelDiy/Zeus/4SJUHwGdUQYgg94PFzjZZbGZRjDd/index.html?jmddToSmartEntry=login'
-        }
-       }
-
-      $.get(url, async (err, resp, data) => {
-        try {
-          //console.log(url.url)
-          //console.log(data)
-          data = JSON.parse(data);
-          console.log(data.toast.subTitle)
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+async function doTry(good) {
+	return new Promise((resolve, reject) => {
+		$.get(taskurl(`${selfDomain}/migrate/apply?activityId=${good.id}&source=1&_s=m`, good.id), (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					if (data.success) {
+						$.totalTry += 1
+						console.log(`🥳 ${good.id} 🛒${good.trialName.substr(0,15)}🛒 ${data.message}`)
+					} else if (data.code == '-131') { // 每日300个商品
+						$.stopMsg = data.message
+						$.running = false
+					} else {
+						console.log(`🤬 ${good.id} 🛒${good.trialName.substr(0,15)}🛒 ${JSON.stringify(data)}`)
+					}
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve()
+			}
+		})
+	})
 }
 
-//群组助力
-function zoo_pk_assistGroup(inviteId = "",timeout = 0) {
-  return new Promise((resolve) => {
-    let rnd = Math.round(Math.random()*1e6)
-    let nonstr = randomWord(false,10)
-    let time = Date.now()
-    let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-    let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-    let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase()
-    //inviteId = "IgNWdiLGaPbb6ArIDg2g7t5ov9boGePFOlAq0hiVz-muX7bnH9gutA"
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_pk_assistGroup`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.6;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`,
-          'Refer' : `https://bunearth.m.jd.com/babelDiy/Zeus/4SJUHwGdUQYgg94PFzjZZbGZRjDd/index.html?jmddToSmartEntry=login`
-        },
-        body : `functionId=zoo_pk_assistGroup&body={"confirmFlag":1,"inviteId":"${inviteId}","ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.1\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"pkPopupHelpButtonId\\",\\"sceneid\\":\\"sideTaskh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}"}&client=wh5&clientVersion=1.0.0`
-      }
-      //console.log(url.body)
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log('商圈助力：' + data)
-          data = JSON.parse(data);
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+async function getSuccessList() {
+	// 一页12个商品，不会吧不会吧，不会有人一次性中奖12个商品吧？！🤔
+	return new Promise((resolve, reject) => {
+		const option = {
+			url: `https://try.jd.com/my/tryList?selected=2&page=1&tryVersion=2&_s=m`,
+			headers: {
+				'Host': 'try.jd.com',
+				'Connection': 'keep-alive',
+				'UserAgent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1',
+				'Accept': '*/*',
+				'Referer': 'https://try.m.jd.com/',
+				'Accept-Encoding': 'gzip, deflate, br',
+				'Accept-Language': 'zh,zh-CN;q=0.9,en;q=0.8',
+				'Cookie': $.cookie
+			}
+		}
+		$.get(option, (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					if (data.success && data.data) {
+						$.successList = data.data.data.filter(item => {
+							return item.text.text.indexOf('请尽快领取') != -1
+						})
+					} else {
+						console.log(`💩 获得成功列表失败: ${data.message}`)
+					}
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve()
+			}
+		})
+	})
 }
 
-//获取首页信息
-function zoo_getHomeData(inviteId= "",timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_getHomeData`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_getHomeData&body={${inviteId ? "\"inviteId\":\"" + inviteId +'\"': ""}}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(url.body)
-          //if (merge.black)  return ;
-          data = JSON.parse(data);
-          if (data.code === 0) {
-            if (inviteId !== "") {
-              //console.log('zoo_getHomeData2:' + JSON.stringify(data))
-              //if (data.data.result.homeMainInfo.guestInfo.status === 0) {
-               if (true) {
-                let rnd = Math.round(Math.random()*1e6)
-                let nonstr = randomWord(false,10)
-                let time = Date.now()
-                let key = minusByByte(nonstr.slice(0,5),String(time).slice(-5))
-                let msg = `random=${rnd}&token=d89985df35e6a2227fd2e85fe78116d2&time=${time}&nonce_str=${nonstr}&key=${key}&is_trust=true`
-                let sign = bytesToHex(wordsToBytes(getSign(msg))).toUpperCase()
-                let taskBody = `functionId=zoo_collectScore&body={"taskId":2,"ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.2\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"jmdd-react-smash_62\\",\\"sceneid\\":\\"homePageh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}","inviteId":"${inviteId}","actionType":1}&client=wh5&clientVersion=1.0.0`
-                await zoo_collectScore(taskBody, 1000)
-                //let taskBody = `functionId=zoo_doAdditionalTask&body={"ss":"{\\"extraData\\":{\\"is_trust\\":true,\\"sign\\":\\"${sign}\\",\\"fpb\\":\\"\\",\\"time\\":${time},\\"encrypt\\":\\"3\\",\\"nonstr\\":\\"${nonstr}\\",\\"jj\\":\\"\\",\\"token\\":\\"d89985df35e6a2227fd2e85fe78116d2\\",\\"cf_v\\":\\"1.0.2\\",\\"client_version\\":\\"2.2.1\\",\\"buttonid\\":\\"homePopupHelpButtonId\\",\\"sceneid\\":\\"mainTaskh5\\"},\\"secretp\\":\\"${secretp}\\",\\"random\\":\\"${rnd}\\"}","inviteId":"cAxZdTXtIL3Z4wnNDAeu6UJH04V9-dkV6PTOUlAw2_pIXu8I-B8Mgnlc4UY"}&client=wh5&clientVersion=1.0.0`
-                //await zoo_doAdditionalTask(taskBody,1000)
-              }
-              return
-            }
-            //console.log('zoo_getHomeData:' + JSON.stringify(data))
-            secretp = data.data.result.homeMainInfo.secretp
-            await zoo_collectProduceScore();
-            await zoo_pk_getHomeData('1')
-            //await zoo_pk_assistGroup()
-            if (data.data.result.homeMainInfo.raiseInfo.buttonStatus === 1 ) await zoo_raise(1000)
-            // 助力码 
-            for (let i in inviteIdList) {
-              if (inviteIdList[i]){
-                await zoo_getHomeData(inviteIdList[i]);
-                console.log("正在助力个人码："+inviteIdList[i])
-              } 
-            }
-            // await zoo_getHomeData('ZXTKT0225KkcRx4b8lbWJU72wvZZcwFjRWn6-7zx55awQ');
-            //await zoo_getTaskDetail("","app")
-            await zoo_getTaskDetail()
-          } else {
-            return
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+async function showMsg() {
+	let message = `京东账号${$.index} ${$.nickName || $.UserName}\n🎉 本次申请：${$.totalTry}/${$.totalGoods}个商品🛒\n🎉 ${$.successList.length}个商品待领取🤩\n🎉 结束原因：${$.stopMsg}`
+	if (!args.jdNotify || args.jdNotify === 'false') {
+		$.msg($.name, ``, message, {
+			"open-url": 'https://try.m.jd.com/user'
+		})
+		await $.notify.sendNotify(`${$.name} - 账号${$.index} - ${$.nickName}`, message)
+	} else {
+		console.log(message)
+	}
 }
 
-
-//助力
-function collectFriendRecordColor(timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}collectFriendRecordColor`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=collectFriendRecordColor&body={"mpin":"RnFgwWRbPDGKy9RP--twXV_3bZt2p2ZADl2v","businessCode":"20118","assistType":"1"}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          console.log(data)
-          //data = JSON.parse(data);
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function taskurl(url, goodId) {
+	return {
+		'url': url,
+		'headers': {
+			'Host': 'try.m.jd.com',
+			'Accept-Encoding': 'gzip, deflate, br',
+			'Cookie': $.cookie,
+			'Connection': 'keep-alive',
+			'Accept': '*/*',
+			'UserAgent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1',
+			'Accept-Language': 'zh-cn',
+			'Referer': goodId ? `https://try.m.jd.com/activity/?id=${goodId}` : undefined
+		},
+	}
 }
 
-function getEncryptedPinColor(timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}getEncryptedPinColor`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=getEncryptedPinColor&body={}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          data = JSON.parse(data);
-          console.log('助力码:'+ data.result)
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function totalBean() {
+	return new Promise(async resolve => {
+		const options = {
+			"url": `https://wq.jd.com/user/info/QueryJDUserInfo?sceneval=2`,
+			"headers": {
+				"Accept": "application/json,text/plain, */*",
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Accept-Encoding": "gzip, deflate, br",
+				"Accept-Language": "zh-cn",
+				"Connection": "keep-alive",
+				"Cookie": $.cookie,
+				"Referer": "https://wqs.jd.com/my/jingdou/my.shtml?sceneval=2",
+				"User-Agent": $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1")
+			},
+			"timeout": 10000,
+		}
+		$.post(options, (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`${JSON.stringify(err)}`)
+					console.log(`${$.name} API请求失败，请检查网路重试`)
+				} else {
+					if (data) {
+						data = JSON.parse(data);
+						if (data['retcode'] === 13) {
+							$.isLogin = false; //cookie过期
+							return
+						}
+						if (data['retcode'] === 0) {
+							$.nickName = (data['base'] && data['base'].nickname) || $.UserName;
+						} else {
+							$.nickName = $.UserName
+						}
+					} else {
+						console.log(`京东服务器返回空数据`)
+					}
+				}
+			} catch (e) {
+				$.logErr(e, resp)
+			} finally {
+				resolve();
+			}
+		})
+	})
 }
 
-function zoo_raise(timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_raise`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_raise&body={}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(data)
-          data = JSON.parse(data);
-          console.log('解锁结果：'+ (data.data.bizCode||'成功'))
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
+function jsonParse(str) {
+	if (typeof str == "string") {
+		try {
+			return JSON.parse(str);
+		} catch (e) {
+			console.log(e);
+			$.msg($.name, '', '请勿随意在BoxJs输入框修改内容\n建议通过脚本去获取cookie')
+			return [];
+		}
+	}
 }
 
-function qryCompositeMaterials(timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}qryCompositeMaterials`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=qryCompositeMaterials&body={"qryParam":"[{\\"type\\":\\"advertGroup\\",\\"mapTo\\":\\"viewLogo\\",\\"id\\":\\"05149412\\"},{\\"type\\":\\"advertGroup\\",\\"mapTo\\":\\"bottomLogo\\",\\"id\\":\\"05149413\\"}]","activityId":"2cKMj86srRdhgWcKonfExzK4ZMBy","pageId":"","reqSrc":"","applyKey":"21beast"}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          //console.log(data)
-          data = JSON.parse(data);
-          for (let i in data.data.viewLogo.list) {
-            await zoo_getTaskDetail(data.data.viewLogo.list[i].desc)
-          }
-          for (let i in data.data.bottomLogo.list) {
-            await zoo_getTaskDetail(data.data.bottomLogo.list[i].desc)
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
-}
+// 来自 @chavyleung 大佬
+// https://raw.githubusercontent.com/chavyleung/scripts/master/Env.js
+function Env(name, opts) {
+	class Http {
+		constructor(env) {
+			this.env = env
+		}
 
-function zoo_pk_getHomeData(body = "",timeout = 0) {
-  return new Promise((resolve) => {
-    setTimeout( ()=>{
-      let url = {
-        url : `${JD_API_HOST}zoo_pk_getHomeData`  ,
-        headers : {
-          'Origin' : `https://wbbny.m.jd.com`,
-          'Cookie' : cookie,
-          'Connection' : `keep-alive`,
-          'Accept' : `application/json, text/plain, */*`,
-          'Host' : `api.m.jd.com`,
-          'User-Agent' : `jdapp;iPhone;9.2.0;14.1;`,
-          'Accept-Encoding' : `gzip, deflate, br`,
-          'Accept-Language' : `zh-cn`
-        },
-        body : `functionId=zoo_pk_getHomeData&body={}&client=wh5&clientVersion=1.0.0`
-      }
-      $.post(url, async (err, resp, data) => {
-        try {
-          if (body !== "") {
-            // await $.getScript("https://raw.githubusercontent.com/yangtingxiao/QuantumultX/master/memo/jd_zooShareCode.txt").then((text) => (shareCodeList = text.split('\n')))
-            for (let i in shareCodeList) {
-              if (shareCodeList[i]) {
-                  console.log("正在群组助力："+shareCodeList[i])
-                  await zoo_pk_assistGroup(shareCodeList[i]);
-              }
-            }
-            //await zoo_pk_assistGroup(body);
-          } else {
-          data = JSON.parse(data);
-          console.log('您的商圈助力码：' + data.data.result.groupInfo.groupAssistInviteId)
-          }
-        } catch (e) {
-          $.logErr(e, resp);
-        } finally {
-          resolve()
-        }
-      })
-    },timeout)
-  })
-}
+		send(opts, method = 'GET') {
+			opts = typeof opts === 'string' ? {
+				url: opts
+			} : opts
+			let sender = this.get
+			if (method === 'POST') {
+				sender = this.post
+			}
+			return new Promise((resolve, reject) => {
+				sender.call(this, opts, (err, resp, body) => {
+					if (err) reject(err)
+					else resolve(resp)
+				})
+			})
+		}
 
-function randomWord(randomFlag, min, max){
-  let str = "",
-    range = min,
-    arr = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-  // 随机产生
-  if(randomFlag){
-    range = Math.round(Math.random() * (max-min)) + min;
-  }
-  for(let i=0; i<range; i++){
-    pos = Math.round(Math.random() * (arr.length-1));
-    str += arr[pos];
-  }
-  return str;
-}
+		get(opts) {
+			return this.send.call(this.env, opts)
+		}
 
-function minusByByte(t, n) {
-  var e = t.length
-    , r = n.length
-    , o = Math.max(e, r)
-    , i = toAscii(t)
-    , a = toAscii(n)
-    , s = ""
-    , u = 0;
-  for (e !== r && (i = add0(i, o),
-    a = this.add0(a, o)); u < o; )
-    s += Math.abs(i[u] - a[u]),
-      u++;
-  return s
-}
+		post(opts) {
+			return this.send.call(this.env, opts, 'POST')
+		}
+	}
 
-function toAscii (t) {
-  var n = "";
-  for (var e in t) {
-    var r = t[e]
-      , o = /[a-zA-Z]/.test(r);
-    if (t.hasOwnProperty(e))
-      if (o)
-        n += getLastAscii(r);
-      else
-        n += r
-  }
-  return n
-}
-function add0 (t, n) {
-  return (Array(n).join("0") + t).slice(-n)
-}
+	return new(class {
+		constructor(name, opts) {
+			this.name = name
+			this.http = new Http(this)
+			this.data = null
+			this.dataFile = 'box.dat'
+			this.logs = []
+			this.isMute = false
+			this.isNeedRewrite = false
+			this.logSeparator = '\n'
+			this.startTime = new Date().getTime()
+			Object.assign(this, opts)
+			this.log('', `🔔${this.name}, 开始!`)
+		}
 
-function getLastAscii(t) {
-  var n = t.charCodeAt(0).toString();
-  return n[n.length - 1]
-}
+		isNode() {
+			return 'undefined' !== typeof module && !!module.exports
+		}
 
-function wordsToBytes(t) {
-  for (var n = [], e = 0; e < 32 * t.length; e += 8)
-    n.push(t[e >>> 5] >>> 24 - e % 32 & 255);
-  return n
-}
+		isQuanX() {
+			return 'undefined' !== typeof $task
+		}
 
-function bytesToHex(t) {
-  for (var n = [], e = 0; e < t.length; e++)
-    n.push((t[e] >>> 4).toString(16)),
-      n.push((15 & t[e]).toString(16));
-  return n.join("")
-}
+		isSurge() {
+			return 'undefined' !== typeof $httpClient && 'undefined' === typeof $loon
+		}
 
-function stringToBytes(t) {
-  t = unescape(encodeURIComponent(t))
-  for (var n = [], e = 0; e < t.length; e++)
-    n.push(255 & t.charCodeAt(e));
-  return n
-}
+		isLoon() {
+			return 'undefined' !== typeof $loon
+		}
 
-function bytesToWords(t) {
-  for (var n = [], e = 0, r = 0; e < t.length; e++,
-    r += 8)
-    n[r >>> 5] |= t[e] << 24 - r % 32;
-  return n
-}
-function getSign (t) {
-  t = stringToBytes(t)
-  var e = bytesToWords(t)
-    , i = 8 * t.length
-    , a = []
-    , s = 1732584193
-    , u = -271733879
-    , c = -1732584194
-    , f = 271733878
-    , h = -1009589776;
-  e[i >> 5] |= 128 << 24 - i % 32,
-    e[15 + (i + 64 >>> 9 << 4)] = i;
-  for (var l = 0; l < e.length; l += 16) {
-    for (var p = s, g = u, v = c, d = f, y = h, m = 0; m < 80; m++) {
-      if (m < 16)
-        a[m] = e[l + m];
-      else {
-        var w = a[m - 3] ^ a[m - 8] ^ a[m - 14] ^ a[m - 16];
-        a[m] = w << 1 | w >>> 31
-      }
-      var _ = (s << 5 | s >>> 27) + h + (a[m] >>> 0) + (m < 20 ? 1518500249 + (u & c | ~u & f) : m < 40 ? 1859775393 + (u ^ c ^ f) : m < 60 ? (u & c | u & f | c & f) - 1894007588 : (u ^ c ^ f) - 899497514);
-      h = f,
-        f = c,
-        c = u << 30 | u >>> 2,
-        u = s,
-        s = _
-    }
-    s += p,
-      u += g,
-      c += v,
-      f += d,
-      h += y
-  }
-  return [s, u, c, f, h]
-}
-//初始化
-function initial() {
-  merge = {
-    nickname: "",
-    enabled: true,
-    end: false,
-    black: false
-  }
-  for (let i in merge) {
-    merge[i].success = 0;
-    merge[i].fail = 0;
-    merge[i].prizeCount = 0;
-    merge[i].notify = "";
-    merge[i].show = true;
-  }
-}
-//通知
-function msgShow() {
-  console.log("\n\n京东账号："+merge.nickname + ' 任务已做完！\n如有未完成的任务，请多执行几次')
- //$.msg($.Name,"","京东账号："+merge.nickname + ' 任务已做完！\n如有未完成的任务，请多执行几次')
-}
+		toObj(str, defaultValue = null) {
+			try {
+				return JSON.parse(str)
+			} catch {
+				return defaultValue
+			}
+		}
 
-function Env(t,e){class s{constructor(t){this.env=t}send(t,e="GET"){t="string"==typeof t?{url:t}:t;let s=this.get;return"POST"===e&&(s=this.post),new Promise((e,i)=>{s.call(this,t,(t,s,r)=>{t?i(t):e(s)})})}get(t){return this.send.call(this.env,t)}post(t){return this.send.call(this.env,t,"POST")}}return new class{constructor(t,e){this.name=t,this.http=new s(this),this.data=null,this.dataFile="box.dat",this.logs=[],this.isMute=!1,this.isNeedRewrite=!1,this.logSeparator="\n",this.startTime=(new Date).getTime(),Object.assign(this,e),this.log("",`\ud83d\udd14${this.name}, \u5f00\u59cb!`)}isNode(){return"undefined"!=typeof module&&!!module.exports}isQuanX(){return"undefined"!=typeof $task}isSurge(){return"undefined"!=typeof $httpClient&&"undefined"==typeof $loon}isLoon(){return"undefined"!=typeof $loon}toObj(t,e=null){try{return JSON.parse(t)}catch{return e}}toStr(t,e=null){try{return JSON.stringify(t)}catch{return e}}getjson(t,e){let s=e;const i=this.getdata(t);if(i)try{s=JSON.parse(this.getdata(t))}catch{}return s}setjson(t,e){try{return this.setdata(JSON.stringify(t),e)}catch{return!1}}getScript(t){return new Promise(e=>{this.get({url:t},(t,s,i)=>e(i))})}runScript(t,e){return new Promise(s=>{let i=this.getdata("@chavy_boxjs_userCfgs.httpapi");i=i?i.replace(/\n/g,"").trim():i;let r=this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");r=r?1*r:20,r=e&&e.timeout?e.timeout:r;const[o,h]=i.split("@"),a={url:`http://${h}/v1/scripting/evaluate`,body:{script_text:t,mock_type:"cron",timeout:r},headers:{"X-Key":o,Accept:"*/*"}};this.post(a,(t,e,i)=>s(i))}).catch(t=>this.logErr(t))}loaddata(){if(!this.isNode())return{};{this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e);if(!s&&!i)return{};{const i=s?t:e;try{return JSON.parse(this.fs.readFileSync(i))}catch(t){return{}}}}}writedata(){if(this.isNode()){this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e),r=JSON.stringify(this.data);s?this.fs.writeFileSync(t,r):i?this.fs.writeFileSync(e,r):this.fs.writeFileSync(t,r)}}lodash_get(t,e,s){const i=e.replace(/\[(\d+)\]/g,".$1").split(".");let r=t;for(const t of i)if(r=Object(r)[t],void 0===r)return s;return r}lodash_set(t,e,s){return Object(t)!==t?t:(Array.isArray(e)||(e=e.toString().match(/[^.[\]]+/g)||[]),e.slice(0,-1).reduce((t,s,i)=>Object(t[s])===t[s]?t[s]:t[s]=Math.abs(e[i+1])>>0==+e[i+1]?[]:{},t)[e[e.length-1]]=s,t)}getdata(t){let e=this.getval(t);if(/^@/.test(t)){const[,s,i]=/^@(.*?)\.(.*?)$/.exec(t),r=s?this.getval(s):"";if(r)try{const t=JSON.parse(r);e=t?this.lodash_get(t,i,""):e}catch(t){e=""}}return e}setdata(t,e){let s=!1;if(/^@/.test(e)){const[,i,r]=/^@(.*?)\.(.*?)$/.exec(e),o=this.getval(i),h=i?"null"===o?null:o||"{}":"{}";try{const e=JSON.parse(h);this.lodash_set(e,r,t),s=this.setval(JSON.stringify(e),i)}catch(e){const o={};this.lodash_set(o,r,t),s=this.setval(JSON.stringify(o),i)}}else s=this.setval(t,e);return s}getval(t){return this.isSurge()||this.isLoon()?$persistentStore.read(t):this.isQuanX()?$prefs.valueForKey(t):this.isNode()?(this.data=this.loaddata(),this.data[t]):this.data&&this.data[t]||null}setval(t,e){return this.isSurge()||this.isLoon()?$persistentStore.write(t,e):this.isQuanX()?$prefs.setValueForKey(t,e):this.isNode()?(this.data=this.loaddata(),this.data[e]=t,this.writedata(),!0):this.data&&this.data[e]||null}initGotEnv(t){this.got=this.got?this.got:require("got"),this.cktough=this.cktough?this.cktough:require("tough-cookie"),this.ckjar=this.ckjar?this.ckjar:new this.cktough.CookieJar,t&&(t.headers=t.headers?t.headers:{},void 0===t.headers.Cookie&&void 0===t.cookieJar&&(t.cookieJar=this.ckjar))}get(t,e=(()=>{})){t.headers&&(delete t.headers["Content-Type"],delete t.headers["Content-Length"]),this.isSurge()||this.isLoon()?(this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.get(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)})):this.isQuanX()?(this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t))):this.isNode()&&(this.initGotEnv(t),this.got(t).on("redirect",(t,e)=>{try{if(t.headers["set-cookie"]){const s=t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();this.ckjar.setCookieSync(s,null),e.cookieJar=this.ckjar}}catch(t){this.logErr(t)}}).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)}))}post(t,e=(()=>{})){if(t.body&&t.headers&&!t.headers["Content-Type"]&&(t.headers["Content-Type"]="application/x-www-form-urlencoded"),t.headers&&delete t.headers["Content-Length"],this.isSurge()||this.isLoon())this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.post(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)});else if(this.isQuanX())t.method="POST",this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t));else if(this.isNode()){this.initGotEnv(t);const{url:s,...i}=t;this.got.post(s,i).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)})}}time(t){let e={"M+":(new Date).getMonth()+1,"d+":(new Date).getDate(),"H+":(new Date).getHours(),"m+":(new Date).getMinutes(),"s+":(new Date).getSeconds(),"q+":Math.floor(((new Date).getMonth()+3)/3),S:(new Date).getMilliseconds()};/(y+)/.test(t)&&(t=t.replace(RegExp.$1,((new Date).getFullYear()+"").substr(4-RegExp.$1.length)));for(let s in e)new RegExp("("+s+")").test(t)&&(t=t.replace(RegExp.$1,1==RegExp.$1.length?e[s]:("00"+e[s]).substr((""+e[s]).length)));return t}msg(e=t,s="",i="",r){const o=t=>{if(!t)return t;if("string"==typeof t)return this.isLoon()?t:this.isQuanX()?{"open-url":t}:this.isSurge()?{url:t}:void 0;if("object"==typeof t){if(this.isLoon()){let e=t.openUrl||t.url||t["open-url"],s=t.mediaUrl||t["media-url"];return{openUrl:e,mediaUrl:s}}if(this.isQuanX()){let e=t["open-url"]||t.url||t.openUrl,s=t["media-url"]||t.mediaUrl;return{"open-url":e,"media-url":s}}if(this.isSurge()){let e=t.url||t.openUrl||t["open-url"];return{url:e}}}};this.isMute||(this.isSurge()||this.isLoon()?$notification.post(e,s,i,o(r)):this.isQuanX()&&$notify(e,s,i,o(r)));let h=["","==============\ud83d\udce3\u7cfb\u7edf\u901a\u77e5\ud83d\udce3=============="];h.push(e),s&&h.push(s),i&&h.push(i),console.log(h.join("\n")),this.logs=this.logs.concat(h)}log(...t){t.length>0&&(this.logs=[...this.logs,...t]),console.log(t.join(this.logSeparator))}logErr(t,e){const s=!this.isSurge()&&!this.isQuanX()&&!this.isLoon();s?this.log("",`\u2757\ufe0f${this.name}, \u9519\u8bef!`,t.stack):this.log("",`\u2757\ufe0f${this.name}, \u9519\u8bef!`,t)}wait(t){return new Promise(e=>setTimeout(e,t))}done(t={}){const e=(new Date).getTime(),s=(e-this.startTime)/1e3;this.log("",`\ud83d\udd14${this.name}, \u7ed3\u675f! \ud83d\udd5b ${s} \u79d2`),this.log(),(this.isSurge()||this.isQuanX()||this.isLoon())&&$done(t)}}(t,e)}
+		toStr(obj, defaultValue = null) {
+			try {
+				return JSON.stringify(obj)
+			} catch {
+				return defaultValue
+			}
+		}
+
+		getjson(key, defaultValue) {
+			let json = defaultValue
+			const val = this.getdata(key)
+			if (val) {
+				try {
+					json = JSON.parse(this.getdata(key))
+				} catch {}
+			}
+			return json
+		}
+
+		setjson(val, key) {
+			try {
+				return this.setdata(JSON.stringify(val), key)
+			} catch {
+				return false
+			}
+		}
+
+		getScript(url) {
+			return new Promise((resolve) => {
+				this.get({
+					url
+				}, (err, resp, body) => resolve(body))
+			})
+		}
+
+		runScript(script, runOpts) {
+			return new Promise((resolve) => {
+				let httpapi = this.getdata('@chavy_boxjs_userCfgs.httpapi')
+				httpapi = httpapi ? httpapi.replace(/\n/g, '').trim() : httpapi
+				let httpapi_timeout = this.getdata('@chavy_boxjs_userCfgs.httpapi_timeout')
+				httpapi_timeout = httpapi_timeout ? httpapi_timeout * 1 : 20
+				httpapi_timeout = runOpts && runOpts.timeout ? runOpts.timeout : httpapi_timeout
+				const [key, addr] = httpapi.split('@')
+				const opts = {
+					url: `http://${addr}/v1/scripting/evaluate`,
+					body: {
+						script_text: script,
+						mock_type: 'cron',
+						timeout: httpapi_timeout
+					},
+					headers: {
+						'X-Key': key,
+						'Accept': '*/*'
+					}
+				}
+				this.post(opts, (err, resp, body) => resolve(body))
+			}).catch((e) => this.logErr(e))
+		}
+
+		loaddata() {
+			if (this.isNode()) {
+				this.fs = this.fs ? this.fs : require('fs')
+				this.path = this.path ? this.path : require('path')
+				const curDirDataFilePath = this.path.resolve(this.dataFile)
+				const rootDirDataFilePath = this.path.resolve(process.cwd(), this.dataFile)
+				const isCurDirDataFile = this.fs.existsSync(curDirDataFilePath)
+				const isRootDirDataFile = !isCurDirDataFile && this.fs.existsSync(rootDirDataFilePath)
+				if (isCurDirDataFile || isRootDirDataFile) {
+					const datPath = isCurDirDataFile ? curDirDataFilePath : rootDirDataFilePath
+					try {
+						return JSON.parse(this.fs.readFileSync(datPath))
+					} catch (e) {
+						return {}
+					}
+				} else return {}
+			} else return {}
+		}
+
+		writedata() {
+			if (this.isNode()) {
+				this.fs = this.fs ? this.fs : require('fs')
+				this.path = this.path ? this.path : require('path')
+				const curDirDataFilePath = this.path.resolve(this.dataFile)
+				const rootDirDataFilePath = this.path.resolve(process.cwd(), this.dataFile)
+				const isCurDirDataFile = this.fs.existsSync(curDirDataFilePath)
+				const isRootDirDataFile = !isCurDirDataFile && this.fs.existsSync(rootDirDataFilePath)
+				const jsondata = JSON.stringify(this.data)
+				if (isCurDirDataFile) {
+					this.fs.writeFileSync(curDirDataFilePath, jsondata)
+				} else if (isRootDirDataFile) {
+					this.fs.writeFileSync(rootDirDataFilePath, jsondata)
+				} else {
+					this.fs.writeFileSync(curDirDataFilePath, jsondata)
+				}
+			}
+		}
+
+		lodash_get(source, path, defaultValue = undefined) {
+			const paths = path.replace(/\[(\d+)\]/g, '.$1').split('.')
+			let result = source
+			for (const p of paths) {
+				result = Object(result)[p]
+				if (result === undefined) {
+					return defaultValue
+				}
+			}
+			return result
+		}
+
+		lodash_set(obj, path, value) {
+			if (Object(obj) !== obj) return obj
+			if (!Array.isArray(path)) path = path.toString().match(/[^.[\]]+/g) || []
+			path
+				.slice(0, -1)
+				.reduce((a, c, i) => (Object(a[c]) === a[c] ? a[c] : (a[c] = Math.abs(path[i + 1]) >> 0 === +path[i + 1] ? [] : {})), obj)[
+					path[path.length - 1]
+				] = value
+			return obj
+		}
+
+		getdata(key) {
+			let val = this.getval(key)
+			// 如果以 @
+			if (/^@/.test(key)) {
+				const [, objkey, paths] = /^@(.*?)\.(.*?)$/.exec(key)
+				const objval = objkey ? this.getval(objkey) : ''
+				if (objval) {
+					try {
+						const objedval = JSON.parse(objval)
+						val = objedval ? this.lodash_get(objedval, paths, '') : val
+					} catch (e) {
+						val = ''
+					}
+				}
+			}
+			return val
+		}
+
+		setdata(val, key) {
+			let issuc = false
+			if (/^@/.test(key)) {
+				const [, objkey, paths] = /^@(.*?)\.(.*?)$/.exec(key)
+				const objdat = this.getval(objkey)
+				const objval = objkey ? (objdat === 'null' ? null : objdat || '{}') : '{}'
+				try {
+					const objedval = JSON.parse(objval)
+					this.lodash_set(objedval, paths, val)
+					issuc = this.setval(JSON.stringify(objedval), objkey)
+				} catch (e) {
+					const objedval = {}
+					this.lodash_set(objedval, paths, val)
+					issuc = this.setval(JSON.stringify(objedval), objkey)
+				}
+			} else {
+				issuc = this.setval(val, key)
+			}
+			return issuc
+		}
+
+		getval(key) {
+			if (this.isSurge() || this.isLoon()) {
+				return $persistentStore.read(key)
+			} else if (this.isQuanX()) {
+				return $prefs.valueForKey(key)
+			} else if (this.isNode()) {
+				this.data = this.loaddata()
+				return this.data[key]
+			} else {
+				return (this.data && this.data[key]) || null
+			}
+		}
+
+		setval(val, key) {
+			if (this.isSurge() || this.isLoon()) {
+				return $persistentStore.write(val, key)
+			} else if (this.isQuanX()) {
+				return $prefs.setValueForKey(val, key)
+			} else if (this.isNode()) {
+				this.data = this.loaddata()
+				this.data[key] = val
+				this.writedata()
+				return true
+			} else {
+				return (this.data && this.data[key]) || null
+			}
+		}
+
+		initGotEnv(opts) {
+			this.got = this.got ? this.got : require('got')
+			this.cktough = this.cktough ? this.cktough : require('tough-cookie')
+			this.ckjar = this.ckjar ? this.ckjar : new this.cktough.CookieJar()
+			if (opts) {
+				opts.headers = opts.headers ? opts.headers : {}
+				if (undefined === opts.headers.Cookie && undefined === opts.cookieJar) {
+					opts.cookieJar = this.ckjar
+				}
+			}
+		}
+
+		get(opts, callback = () => {}) {
+			if (opts.headers) {
+				delete opts.headers['Content-Type']
+				delete opts.headers['Content-Length']
+			}
+			if (this.isSurge() || this.isLoon()) {
+				if (this.isSurge() && this.isNeedRewrite) {
+					opts.headers = opts.headers || {}
+					Object.assign(opts.headers, {
+						'X-Surge-Skip-Scripting': false
+					})
+				}
+				$httpClient.get(opts, (err, resp, body) => {
+					if (!err && resp) {
+						resp.body = body
+						resp.statusCode = resp.status
+					}
+					callback(err, resp, body)
+				})
+			} else if (this.isQuanX()) {
+				if (this.isNeedRewrite) {
+					opts.opts = opts.opts || {}
+					Object.assign(opts.opts, {
+						hints: false
+					})
+				}
+				$task.fetch(opts).then(
+					(resp) => {
+						const {
+							statusCode: status,
+							statusCode,
+							headers,
+							body
+						} = resp
+						callback(null, {
+							status,
+							statusCode,
+							headers,
+							body
+						}, body)
+					},
+					(err) => callback(err)
+				)
+			} else if (this.isNode()) {
+				this.initGotEnv(opts)
+				this.got(opts)
+					.on('redirect', (resp, nextOpts) => {
+						try {
+							if (resp.headers['set-cookie']) {
+								const ck = resp.headers['set-cookie'].map(this.cktough.Cookie.parse).toString()
+								if (ck) {
+									this.ckjar.setCookieSync(ck, null)
+								}
+								nextOpts.cookieJar = this.ckjar
+							}
+						} catch (e) {
+							this.logErr(e)
+						}
+						// this.ckjar.setCookieSync(resp.headers['set-cookie'].map(Cookie.parse).toString())
+					})
+					.then(
+						(resp) => {
+							const {
+								statusCode: status,
+								statusCode,
+								headers,
+								body
+							} = resp
+							callback(null, {
+								status,
+								statusCode,
+								headers,
+								body
+							}, body)
+						},
+						(err) => {
+							const {
+								message: error,
+								response: resp
+							} = err
+							callback(error, resp, resp && resp.body)
+						}
+					)
+			}
+		}
+
+		post(opts, callback = () => {}) {
+			// 如果指定了请求体, 但没指定`Content-Type`, 则自动生成
+			if (opts.body && opts.headers && !opts.headers['Content-Type']) {
+				opts.headers['Content-Type'] = 'application/x-www-form-urlencoded'
+			}
+			if (opts.headers) delete opts.headers['Content-Length']
+			if (this.isSurge() || this.isLoon()) {
+				if (this.isSurge() && this.isNeedRewrite) {
+					opts.headers = opts.headers || {}
+					Object.assign(opts.headers, {
+						'X-Surge-Skip-Scripting': false
+					})
+				}
+				$httpClient.post(opts, (err, resp, body) => {
+					if (!err && resp) {
+						resp.body = body
+						resp.statusCode = resp.status
+					}
+					callback(err, resp, body)
+				})
+			} else if (this.isQuanX()) {
+				opts.method = 'POST'
+				if (this.isNeedRewrite) {
+					opts.opts = opts.opts || {}
+					Object.assign(opts.opts, {
+						hints: false
+					})
+				}
+				$task.fetch(opts).then(
+					(resp) => {
+						const {
+							statusCode: status,
+							statusCode,
+							headers,
+							body
+						} = resp
+						callback(null, {
+							status,
+							statusCode,
+							headers,
+							body
+						}, body)
+					},
+					(err) => callback(err)
+				)
+			} else if (this.isNode()) {
+				this.initGotEnv(opts)
+				const {
+					url,
+					..._opts
+				} = opts
+				this.got.post(url, _opts).then(
+					(resp) => {
+						const {
+							statusCode: status,
+							statusCode,
+							headers,
+							body
+						} = resp
+						callback(null, {
+							status,
+							statusCode,
+							headers,
+							body
+						}, body)
+					},
+					(err) => {
+						const {
+							message: error,
+							response: resp
+						} = err
+						callback(error, resp, resp && resp.body)
+					}
+				)
+			}
+		}
+		/**
+		 *
+		 * 示例:$.time('yyyy-MM-dd qq HH:mm:ss.S')
+		 *    :$.time('yyyyMMddHHmmssS')
+		 *    y:年 M:月 d:日 q:季 H:时 m:分 s:秒 S:毫秒
+		 *    其中y可选0-4位占位符、S可选0-1位占位符，其余可选0-2位占位符
+		 * @param {*} fmt 格式化参数
+		 *
+		 */
+		time(fmt) {
+			let o = {
+				'M+': new Date().getMonth() + 1,
+				'd+': new Date().getDate(),
+				'H+': new Date().getHours(),
+				'm+': new Date().getMinutes(),
+				's+': new Date().getSeconds(),
+				'q+': Math.floor((new Date().getMonth() + 3) / 3),
+				'S': new Date().getMilliseconds()
+			}
+			if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (new Date().getFullYear() + '').substr(4 - RegExp.$1.length))
+			for (let k in o)
+				if (new RegExp('(' + k + ')').test(fmt))
+					fmt = fmt.replace(RegExp.$1, RegExp.$1.length == 1 ? o[k] : ('00' + o[k]).substr(('' + o[k]).length))
+			return fmt
+		}
+
+		/**
+		 * 系统通知
+		 *
+		 * > 通知参数: 同时支持 QuanX 和 Loon 两种格式, EnvJs根据运行环境自动转换, Surge 环境不支持多媒体通知
+		 *
+		 * 示例:
+		 * $.msg(title, subt, desc, 'twitter://')
+		 * $.msg(title, subt, desc, { 'open-url': 'twitter://', 'media-url': 'https://github.githubassets.com/images/modules/open_graph/github-mark.png' })
+		 * $.msg(title, subt, desc, { 'open-url': 'https://bing.com', 'media-url': 'https://github.githubassets.com/images/modules/open_graph/github-mark.png' })
+		 *
+		 * @param {*} title 标题
+		 * @param {*} subt 副标题
+		 * @param {*} desc 通知详情
+		 * @param {*} opts 通知参数
+		 *
+		 */
+		msg(title = name, subt = '', desc = '', opts) {
+			const toEnvOpts = (rawopts) => {
+				if (!rawopts) return rawopts
+				if (typeof rawopts === 'string') {
+					if (this.isLoon()) return rawopts
+					else if (this.isQuanX()) return {
+						'open-url': rawopts
+					}
+					else if (this.isSurge()) return {
+						url: rawopts
+					}
+					else return undefined
+				} else if (typeof rawopts === 'object') {
+					if (this.isLoon()) {
+						let openUrl = rawopts.openUrl || rawopts.url || rawopts['open-url']
+						let mediaUrl = rawopts.mediaUrl || rawopts['media-url']
+						return {
+							openUrl,
+							mediaUrl
+						}
+					} else if (this.isQuanX()) {
+						let openUrl = rawopts['open-url'] || rawopts.url || rawopts.openUrl
+						let mediaUrl = rawopts['media-url'] || rawopts.mediaUrl
+						return {
+							'open-url': openUrl,
+							'media-url': mediaUrl
+						}
+					} else if (this.isSurge()) {
+						let openUrl = rawopts.url || rawopts.openUrl || rawopts['open-url']
+						return {
+							url: openUrl
+						}
+					}
+				} else {
+					return undefined
+				}
+			}
+			if (!this.isMute) {
+				if (this.isSurge() || this.isLoon()) {
+					$notification.post(title, subt, desc, toEnvOpts(opts))
+				} else if (this.isQuanX()) {
+					$notify(title, subt, desc, toEnvOpts(opts))
+				}
+			}
+			if (!this.isMuteLog) {
+				let logs = ['', '==============📣系统通知📣==============']
+				logs.push(title)
+				subt ? logs.push(subt) : ''
+				desc ? logs.push(desc) : ''
+				console.log(logs.join('\n'))
+				this.logs = this.logs.concat(logs)
+			}
+		}
+
+		log(...logs) {
+			if (logs.length > 0) {
+				this.logs = [...this.logs, ...logs]
+			}
+			console.log(logs.join(this.logSeparator))
+		}
+
+		logErr(err, msg) {
+			const isPrintSack = !this.isSurge() && !this.isQuanX() && !this.isLoon()
+			if (!isPrintSack) {
+				this.log('', `❗️${this.name}, 错误!`, err)
+			} else {
+				this.log('', `❗️${this.name}, 错误!`, err.stack)
+			}
+		}
+
+		wait(time) {
+			return new Promise((resolve) => setTimeout(resolve, time))
+		}
+
+		done(val = {}) {
+			const endTime = new Date().getTime()
+			const costTime = (endTime - this.startTime) / 1000
+			this.log('', `🔔${this.name}, 结束! 🕛 ${costTime} 秒`)
+			this.log()
+			if (this.isSurge() || this.isQuanX() || this.isLoon()) {
+				$done(val)
+			}
+		}
+	})(name, opts)
+}
