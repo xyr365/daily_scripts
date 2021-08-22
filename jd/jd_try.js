@@ -23,7 +23,7 @@ let allGoodList = []
 const args = {
 	jdNotify: false,
 	pageSize: 12,
-	cidsList: ["精品试用"],
+	cidsList: ["家用电器", "手机数码", "电脑办公", "家居家装", "精品试用"],
 	typeList: ["普通试用", "闪电试用"],
 	goodFilters: "教程@软件@英语@辅导@培训".split('@'),
 	minPrice: 99,
