@@ -82,9 +82,12 @@ const typeMap = {
 				$.goodList = []
 				$.successList = []
 				if (i == 0) {
-				
+
 				}
-	
+
+
+				$.totalTry = 0
+				$.totalGoods = $.goodList.length
 				await getSuccessList()
 
 				await showMsg()
@@ -165,6 +168,74 @@ function requireConfig() {
 	})
 }
 
+function getGoodListByCond(cids, page, pageSize, type, state) {
+	return new Promise((resolve, reject) => {
+		let option = taskurl(`${selfDomain}/activity/list?pb=1&cids=${cids}&page=${page}&pageSize=${pageSize}&type=${type}&state=${state}`)
+		delete option.headers['Cookie']
+		$.get(option, (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					if (data.success) {
+						$.totalPages = data.data.pages
+						allGoodList = allGoodList.concat(data.data.data)
+					} else {
+						console.log(`💩 获得 ${cids} ${page} 列表失败: ${data.message}`)
+					}
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve()
+			}
+		})
+	})
+}
+
+async function getGoodList() {
+	if (args.cidsList.length === 0) args.cidsList.push("全部商品")
+	if (args.typeList.length === 0) args.typeList.push("全部试用")
+	for (let cidsKey of args.cidsList) {
+		for (let typeKey of args.typeList) {
+			if (!cidsMap.hasOwnProperty(cidsKey) || !typeMap.hasOwnProperty(typeKey)) continue
+			console.log(`⏰ 获取 ${cidsKey} ${typeKey} 商品列表`)
+			$.totalPages = 1
+			for (let page = 1; page <= $.totalPages; page++) {
+				await getGoodListByCond(cidsMap[cidsKey], page, args.pageSize, typeMap[typeKey], '0')
+			}
+		}
+	}
+}
+
+async function filterGoodList() {
+	console.log(`⏰ 过滤商品列表，当前共有${allGoodList.length}个商品`)
+	const now = Date.now()
+	const oneMoreDay = now + 24 * 60 * 60 * 1000
+	$.goodList = allGoodList.filter(good => {
+		// 1. good 有问题
+		// 2. good 距离结束不到10min
+		// 3. good 的结束时间大于一天
+		// 4. good 的价格小于最小的限制
+		// 5. good 的试用数量大于 maxSupplyCount, 视为垃圾商品
+		if (!good || good.endTime < now + 10 * 60 * 1000 || good.endTime > oneMoreDay || good.jdPrice < args.minPrice) {
+			return false
+		}
+		for (let item of args.goodFilters) {
+			if (good.trialName.indexOf(item) != -1) return false
+		}
+		if(good.supplyCount > args.maxSupplyCount){
+			return false
+		}
+		return true
+
+	})
+	await getApplyStateByActivityIds()
+	$.goodList = $.goodList.sort((a, b) => {
+		return b.jdPrice - a.jdPrice
+	})
+}
 
 async function getApplyStateByActivityIds() {
 	function opt(ids) {
@@ -270,6 +341,50 @@ function followShop(good) {
 		})
 	})
 }
+
+async function tryGoodList() {
+	console.log(`⏰ 即将申请 ${$.goodList.length} 个商品`)
+	$.running = true
+	$.stopMsg = '申请完毕'
+	for (let i = 0; i < $.goodList.length && $.running; i++) {
+		let good = $.goodList[i]
+		if (!await canTry(good)) continue
+		// 如果没有关注且关注失败
+		if (good.shopId && !await isFollowed(good) && !await followShop(good)) continue
+		// 两个申请间隔不能太短，放在下面有利于确保 follwShop 完成
+		await $.wait(5000)
+		// 关注完毕，即将试用
+		await doTry(good)
+	}
+}
+
+async function doTry(good) {
+	return new Promise((resolve, reject) => {
+		$.get(taskurl(`${selfDomain}/migrate/apply?activityId=${good.id}&source=1&_s=m`, good.id), (err, resp, data) => {
+			try {
+				if (err) {
+					console.log(`🚫 ${arguments.callee.name.toString()} API请求失败，请检查网路\n${JSON.stringify(err)}`)
+				} else {
+					data = JSON.parse(data)
+					if (data.success) {
+						$.totalTry += 1
+						console.log(`🥳 ${good.id} 🛒${good.trialName.substr(0,15)}🛒 ${data.message}`)
+					} else if (data.code == '-131') { // 每日300个商品
+						$.stopMsg = data.message
+						$.running = false
+					} else {
+						console.log(`🤬 ${good.id} 🛒${good.trialName.substr(0,15)}🛒 ${JSON.stringify(data)}`)
+					}
+				}
+			} catch (e) {
+				reject(`⚠️ ${arguments.callee.name.toString()} API返回结果解析出错\n${e}\n${JSON.stringify(data)}`)
+			} finally {
+				resolve()
+			}
+		})
+	})
+}
+
 async function getSuccessList() {
 	// 一页12个商品，不会吧不会吧，不会有人一次性中奖12个商品吧？！🤔
 	return new Promise((resolve, reject) => {
@@ -310,7 +425,7 @@ async function getSuccessList() {
 }
 
 async function showMsg() {
-	let message = `京东账号${$.index} ${$.nickName || $.UserName}\n🎉 本次申请：${$.totalTry}/${$.totalGoods}个商品🛒\n🎉 ${$.successList.text}个商品待领取🤩\n🎉 结束原因：${$.stopMsg}`
+	let message = `京东账号${$.index} ${$.nickName || $.UserName}\n🎉 本次申请：${$.totalTry}/${$.totalGoods}个商品🛒\n🎉 ${$.successList.length}个商品待领取🤩\n🎉 结束原因：${$.stopMsg}`
 	if (!args.jdNotify || args.jdNotify === 'false') {
 		$.msg($.name, ``, message, {
 			"open-url": 'https://try.m.jd.com/user'
