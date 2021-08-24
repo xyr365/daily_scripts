@@ -82,13 +82,9 @@ const typeMap = {
 				$.goodList = []
 				$.successList = []
 				if (i == 0) {
-					await getGoodList()
+				
 				}
-				await filterGoodList()
-
-				$.totalTry = 0
-				$.totalGoods = $.goodList.length
-				await tryGoodList()
+	
 				await getSuccessList()
 
 				await showMsg()
