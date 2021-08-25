@@ -27,7 +27,7 @@ const args = {
 	typeList: ["全部试用"],
 	goodFilters: "教程@软件@英语@辅导@培训@自慰@玉".split('@'),
 	minPrice: 59,
-	maxSupplyCount: 10,
+	maxSupplyCount: 100000000000,
 }
 
 const cidsMap = {
