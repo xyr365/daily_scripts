@@ -23,11 +23,11 @@ let allGoodList = []
 const args = {
 	jdNotify: false,
 	pageSize: 12,
-	cidsList: ["家用电器", "手机数码", "电脑办公", "家居家装", "生鲜美食", "钟表奢品", "钟表奢品", "更多惊喜", "服饰鞋包", "图书音像"],
+	cidsList: ["家用电器", "手机数码", "电脑办公", "家居家装", "生鲜美食", "钟表奢品", "钟表奢品", "更多惊喜", "服饰鞋包", "母婴玩具", "食品饮料", "服饰鞋包", "图书音像"],
 	typeList: ["全部试用"],
-	goodFilters: "教程@软件@英语@辅导@培训@自慰@玉".split('@'),
+	goodFilters: "教程@软件@英语@辅导@培训@自慰@戒烟@牙刷头".split('@'),
 	minPrice: 59,
-	maxSupplyCount: 100000000000,
+	maxSupplyCount: 15,
 }
 
 const cidsMap = {
