@@ -16,7 +16,7 @@ update 2021/4/11
  */
 const $ = new Env('京东试用')
 
-const selfDomain = 'https://uranus.m.jd.com'
+const selfDomain = 'https://try.m.jd.com'
 let allGoodList = []
 
 // default params
